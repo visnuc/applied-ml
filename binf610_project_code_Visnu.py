@@ -1,6 +1,6 @@
-# ------------------------------
-#### Section: Modules & Libraries 
 # ----------
+#### Section: Modules & Libraries 
+
 import matplotlib # improting core plotting lib, engine  
 matplotlib.use('Agg') # Agg for no graphical windows, good for server 
 import matplotlib.pyplot as plt # plotting interface, stearing wheel  
