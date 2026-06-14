@@ -1,4 +1,4 @@
-#### imports and setup 
+#### Section: Modules & Libraries 
 import matplotlib # improting core plotting lib, engine  
 matplotlib.use('Agg') # Agg for no graphical windows, good for server 
 import matplotlib.pyplot as plt # plotting interface, stearing wheel  
@@ -7,9 +7,9 @@ import pandas as pd # main data wrangling tool
 import numpy as np # for anything needing fast/vectorized 
 
 from sklearn.model_selection import StratifiedKFold, cross_val_predict, cross_validate
-# StratifiedKFold, for CV, keeping proportion in each fold, esp for imbalanced data 
-# cross_validate, to get metrics per fold 
-# cross_val_predict, to get prediction for each sample when held out, to make ROC & confusion matrix 
+#   StratifiedKFold, for CV, keeping proportion in each fold, esp for imbalanced data 
+#   cross_validate, to get metrics per fold 
+#   cross_val_predict, to get prediction for each sample when held out, to make ROC & confusion matrix 
 
 from sklearn.ensemble import RandomForestClassifier # classifier, in here as feature selector 
 from sklearn.svm import SVC # classifier
@@ -19,20 +19,34 @@ from sklearn.decomposition import PCA # to reduce dimensions, linearly
 from umap import UMAP # to reduce dimension, non-linearly 
 
 from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
-from sklearn.feature_selection import VarianceThreshold
-from sklearn.preprocessing import StandardScaler, LabelEncoder, label_binarize
-from sklearn.base import BaseEstimator, TransformerMixin
+# eval metrics: 
+#   classification_report, to print precision, recall, F1 
+#   confusion_matrix, to get hit/miss grid per class 
+#   roc_curve & auc, gets per-class ROC curves and the AUC 
 
-# imbalance learn components 
-from imblearn.over_sampling import SMOTE
-from imblearn.pipeline import Pipeline # to apply SMOTE only to training folds, prevents leak
+from sklearn.feature_selection import VarianceThreshold # drops genes w near-0 variance 
+from sklearn.preprocessing import StandardScaler, LabelEncoder, label_binarize
+#   StandardScaler, normalizes features to 0 mean and unit var before feeding into classifiers 
+#   LabelEncoder, converts subtype strings e.g., LumA into integers 
+#   label_binarize, converts those int into binary matrix for multi-class ROC calc 
+
+from sklearn.base import BaseEstimator, TransformerMixin
+#   BaseEstimator, to handle setting + copying 
+#   TransformerMixin, to handle fit then transform step
+# for later to use inside custom class/function 
+
+from imblearn.over_sampling import SMOTE # SMOTE to generate new minority samples
+#   through interpolating, to handle class imbalance 
+from imblearn.pipeline import Pipeline # VERY IMPORTANT 
+#   to apply SMOTE only to training folds, prevents leak
 
 # mc nemar's test 
-from scipy.stats import chi2
-from itertools import combinations # gen unique pairs of models 
-import warnings
+from scipy.stats import chi2 # gets chi^2 distro, to check model diffs 
+from itertools import combinations # to gen unique combos of models, instead of doing manually 
 
-warnings.filterwarnings('ignore') # ensures clean terminal output 
+# importing but silencing non-critical warnings 
+import warnings
+warnings.filterwarnings('ignore') 
 
 #### custom scikit-learn transformers 
 class TopNSelector(BaseEstimator, TransformerMixin):
