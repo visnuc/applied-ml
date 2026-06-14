@@ -6,13 +6,18 @@ import seaborn as sns # higher level plotting library
 import pandas as pd # main data wrangling tool 
 import numpy as np # for anything needing fast/vectorized 
 
-# scikit-learn tools for cv and ml models 
 from sklearn.model_selection import StratifiedKFold, cross_val_predict, cross_validate
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
-from xgboost import XGBClassifier
-from sklearn.decomposition import PCA
-from umap import UMAP
+# StratifiedKFold, for CV, keeping proportion in each fold, esp for imbalanced data 
+# cross_validate, to get metrics per fold 
+# cross_val_predict, to get prediction for each sample when held out, to make ROC & confusion matrix 
+
+from sklearn.ensemble import RandomForestClassifier # classifier, in here as feature selector 
+from sklearn.svm import SVC # classifier
+from xgboost import XGBClassifier # classifier 
+
+from sklearn.decomposition import PCA # to reduce dimensions, linearly 
+from umap import UMAP # to reduce dimension, non-linearly 
+
 from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.preprocessing import StandardScaler, LabelEncoder, label_binarize
