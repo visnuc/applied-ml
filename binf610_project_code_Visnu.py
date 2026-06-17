@@ -78,15 +78,21 @@ class TopNSelector(BaseEstimator, TransformerMixin): # custom feature selector, 
         return X.iloc[:, self.top_indices_] if isinstance(X, pd.DataFrame) else X[:, self.top_indices_] # ternary expression 
         # to get all rows but only genes inportant in fit() step, either panda df or numpy array 
 
-#### in-fodl var thresholding > aparently did not work 
-class InFoldVarianceThreshold(BaseEstimator, TransformerMixin):
+
+# --------------------
+#### Section: in-fold var thresholding | !!! NOT WORKING SINCE GLOBAL THRESHOLDING DONE ALREADY !!! NEED WORK !!!
+    # basically will do the model training and testing inside this
+# --------------------
+class InFoldVarianceThreshold(BaseEstimator, TransformerMixin): # custom class, inheriting 2 parent class, like before 
+    # BaseEstimator, lets sklearn inspect and clone class settings (here its threshold) 
+    # TransformerMixin, brings fit(), to remove genes below threshold; transform(), actually removes them 
     def __init__(self, threshold=0.01):
         self.threshold = threshold
-        self._vt = None
+        self._vt = None # placeholder, _ prefix to signal internal 
 
     def fit(self, X, y=None):
         self._vt = VarianceThreshold(threshold=self.threshold) # initing thresholding 
-        self._vt.fit(X) # calcs feature var on the training fold 
+        self._vt.fit(X) # key! calcs feature var on the training fold 
         return self
 
     def transform(self, X):
@@ -135,33 +141,41 @@ def load_and_preprocess(mrna_file, clin_file): # taking raw data input
         # le.fit_transform(y), converts subtype labels into int for ML
         # le.classes_, to keep orginal label names for later 
 
-#### diagnostics and visualization 
-def plot_diagnostics(y_true, y_probas, classes, name):
-    # converts int class to binary flag matrix for multi-class roc calculation 
+# --------------------
+#### Section: Diagnostics and visualization 
+# --------------------
+def plot_diagnostics(y_true, y_probas, classes, name): 
+    # converts int classes > binary for multi-class ROC-AUC calculation, 1 for match, 0 for rest 
     y_true_bin = label_binarize(y_true, classes=range(len(classes)))
     plt.figure(figsize=(8, 6))
-    for i in range(len(classes)):
-        fpr, tpr, _ = roc_curve(y_true_bin[:, i], y_probas[:, i]) # calcs false +ve and true +ve 
+    for i in range(len(classes)): # loops once per subtype 
+        fpr, tpr, _ = roc_curve(y_true_bin[:, i], y_probas[:, i]) 
+        # compares binary true/false lebales against predicted probability of belonging to class i 
+        # returns FPR and TPR at many probabily Th; _ removes 3rd returned value not needed to plot 
         plt.plot(fpr, tpr, label=f'{classes[i]} (AUC = {auc(fpr, tpr):.2f})') # plots perclass roc 
+        # FPR on x-axis, TPR on y-axis
     plt.plot([0, 1], [0, 1], 'k--') # draws diagonal 50% random chance baseline 
     plt.title(f'ROC Curves: {name}')
     plt.legend(loc="lower right")
     plt.savefig(f'ROC_{name.replace(" ", "_")}.png') # exports graph 
-    plt.close()
+    plt.close() # puts pointer back, frees up memory 
 
-    # evals hard predictions by picking class hodling best probability score 
+    # confusion metrix, combination for every combination of true and predicetd classes
     y_pred = np.argmax(y_probas, axis=1)
     cm = confusion_matrix(y_true, y_pred) # counts classification hits and misses 
     plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=classes, yticklabels=classes)
-    # overlays raw integer counts 
+    # draws color-coded CM, annot=True overlays counts, fmt='d' formatting as int 
     plt.title(f'Confusion Matrix: {name}')
     plt.ylabel('True')
     plt.xlabel('Predicted')
     plt.savefig(f'CM_{name.replace(" ", "_")}.png')
     plt.close()
 
-#### model statistical sig diff test, mc nemar's 
+
+# --------------------
+#### Section: Mc Nemar's: Statistical diff between models  
+# --------------------
 def mcnemar_test(y_true, pred_a, pred_b):
     correct_a = (pred_a == y_true) # boolean array showin if model A correct 
     correct_b = (pred_b == y_true) # if model B correct 
@@ -169,7 +183,7 @@ def mcnemar_test(y_true, pred_a, pred_b):
     c = np.sum(~correct_a & correct_b) # if B right, A not 
     if (b + c) == 0:
         return 0.0, 1.0 # returns 0 diff and p=1, if identical model 
-    stat = (abs(b - c) - 1) ** 2 / (b + c) # mc nemar's test statistic w edwards continuity correction 
+    stat = (abs(b - c) - 1) ** 2 / (b + c) # mc nemar's test statistic w -1, edwards continuity correction 
     p_value = chi2.sf(stat, df=1) # p-value from 1 df chi-sq distribution 
     return stat, p_value
 
@@ -177,45 +191,48 @@ def run_significance_tests(all_preds, y_true, pipeline_names):
     print("\n" + "=" * 70)
     print("PAIRWISE MCNEMAR'S TEST (Bonferroni-corrected, alpha=0.05)")
     print("=" * 70)
-    pairs = list(combinations(range(len(pipeline_names)), 2)) # gens unique pairs of models 
+    pairs = list(combinations(range(len(pipeline_names)), 2)) # shows unique pairs of models 
     alpha = 0.05
     corrected_alpha = alpha / len(pairs) # strict bonferroni correction to penalize multiple testing 
     print(f"  Number of pairs: {len(pairs)}  |  Corrected alpha: {corrected_alpha:.4f}\n")
     print(f"  {'Pipeline A':<30} {'Pipeline B':<30} {'Chi2':>8} {'p-value':>10} {'Sig?':>6}")
+    # produces fixed width formatted table, e.g., :<30 for left-align 30 chars 
     print(f"  {'-'*30} {'-'*30} {'-'*8} {'-'*10} {'-'*6}")
 
-    results = []
-    for i, j in pairs:
-        stat, p_val = mcnemar_test(y_true, all_preds[i], all_preds[j])
+    results = [] # placeholder for every comparison 
+    for i, j in pairs: # looping through the model-combos 
+        stat, p_val = mcnemar_test(y_true, all_preds[i], all_preds[j]) # y_true, for ground truth 
         significant = "YES" if p_val < corrected_alpha else "no" # checks against corrected alpha 
         print(f"  {pipeline_names[i]:<30} {pipeline_names[j]:<30} {stat:>8.3f} {p_val:>10.4f} {significant:>6}")
-        results.append((pipeline_names[i], pipeline_names[j], stat, p_val, significant))
+        results.append((pipeline_names[i], pipeline_names[j], stat, p_val, significant)) # saves as tuple 
 
-    # formats results into structure to export 
+    # coverts results to df and save  
     results_df = pd.DataFrame(results, columns=['Pipeline_A', 'Pipeline_B', 'McNemar_Chi2', 'p_value', 'Significant'])
     results_df['Bonferroni_alpha'] = corrected_alpha
     results_df.to_csv('significance_tests.csv', index=False)
-    print(f"\n  Full results saved to significance_tests.csv")
+    print(f"\n  Full results saved to significance_tests.csv") # just a completion message 
 
     # makes internal sequare synmetric matrix for p-value for plotting 
     n = len(pipeline_names)
-    p_matrix = np.ones((n, n))
+    p_matrix = np.ones((n, n)) # setting the matrix size 
     for i, j in pairs:
-        _, p_val = mcnemar_test(y_true, all_preds[i], all_preds[j])
+        _, p_val = mcnemar_test(y_true, all_preds[i], all_preds[j]) # _ to throw away chi-sq stats 
         p_matrix[i, j] = p_val
-        p_matrix[j, i] = p_val
+        p_matrix[j, i] = p_val # this step to visualize as heat map 
 
     short_names = [name.split('.')[1].strip() if '.' in name else name for name in pipeline_names]
+    # formatting label name. If . takes content after it, else as is 
     plt.figure(figsize=(8, 6))
     # heatmap to clip between 0 - 0.05 to show sig vs non-sig diffs 
     sns.heatmap(p_matrix, annot=True, fmt='.3f', cmap='RdYlGn',
                 xticklabels=short_names, yticklabels=short_names,
-                vmin=0, vmax=0.05, linewidths=0.5)
+                vmin=0, vmax=0.05, linewidths=0.5) # cmap='RdYlGn' for red > yellow > green scale 
+                # vmin=0, vmax=0.05, clips color scale to 0-0.05 only 
     plt.title(f"McNemar p-values (corrected α = {corrected_alpha:.4f})\nGreen = not significant | Red = significant difference")
-    plt.tight_layout()
+    plt.tight_layout() # prevents labels from being cut off 
     plt.savefig('Significance_Heatmap.png')
     plt.close()
-    print("  p-value heatmap saved to Significance_Heatmap.png")
+    print("  p-value heatmap saved to Significance_Heatmap.png") # another completion message 
 
 #### sensitivity check, data leakage test 
 def run_vt_leakage_sensitivity_check(X, y):
