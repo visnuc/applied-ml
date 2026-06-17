@@ -92,33 +92,48 @@ class InFoldVarianceThreshold(BaseEstimator, TransformerMixin):
     def transform(self, X):
         return self._vt.transform(X) # drops low var features from split 
 
-#### data loading and processing 
-def load_and_preprocess(mrna_file, clin_file):
+
+# --------------------
+#### Section: Data processing 
+# --------------------
+def load_and_preprocess(mrna_file, clin_file): # taking raw data input 
     print("1. Loading and cleaning data...")
     mrna = pd.read_csv(mrna_file, sep='\t').set_index('Hugo_Symbol').drop(columns=['Entrez_Gene_Id'], errors='ignore').astype(np.float32).T
-    # read gene exp files, raw = gene, col = samples 
+    # read tab separated gene exp files
+        # .set_index('Hugo_Symbol') to set gene symbol column as the row index, to flip, to make col header 
+        # converts default 64-bit values to 32-bit, saves memory 
+        # .T to transpose table, as raw TCGA file comes as row = gene, col = sample, for ML need opposite 
     mrna.index = mrna.index.str[:12] # truncates tcga barcodes, to match patient id, takes first 12 chars  
 
-    # reads clinical data file, bypassing cBioPortal comments 
-    clinical = pd.read_csv(clin_file, sep='\t', comment='#')
-    id_col = 'Patient Identifier' if 'Patient Identifier' in clinical.columns else 'PATIENT_ID'
-    clinical.set_index(id_col, inplace=True)
+    clinical = pd.read_csv(clin_file, sep='\t', comment='#') # reads clinical data, bypassing comments marked with # 
+    id_col = 'Patient Identifier' if 'Patient Identifier' in clinical.columns else 'PATIENT_ID' # finds pt IDs in diff format 
+    clinical.set_index(id_col, inplace=True) # sets id_col as row index (like before for genes), modify inplace w/o new copy
 
-    # finds target col with cancner subtype info 
+    # finds target col with cancner subtype label 
     subtype_col = next((col for col in ['Subtype', 'SUBTYPE', 'BRCA_Subtype'] if col in clinical.columns), None)
+    # looks for subtype labels, gets first match or None if nothing matches
     df = mrna.join(clinical[[subtype_col]], how='inner').dropna(subset=[subtype_col])
     # inner-join mRNA metrics and clinical labels based on mathcing patient id, dropping samples missing subtype label 
+        # clinical[[subtype_col]], selects subtype col from clinical data 
+        # merging mrna and subtype col together, matching by patien id 
+        # inner join, to keep patients common in both files
+        # drops any patient rows w missing subtype label 
 
     X, y = df.drop(columns=[subtype_col]), df[subtype_col]
-    X.columns = [str(col) for col in X.columns] # enforces str formatting on col labels 
+    #   X (feature) is everythign except subtype, y is just the subtype col
+    X.columns = [str(col) for col in X.columns] # forces every co name to be str, to avoid being read a numbers 
 
-    # global var filtering, drops all genes w var < 0.01
-    vt = VarianceThreshold(threshold=0.01)
+    vt = VarianceThreshold(threshold=0.01) # global var filter, drops all gene w var < 0.01 
     X = pd.DataFrame(vt.fit_transform(X), columns=X.columns[vt.get_support()], index=X.index)
+    # vt.fit_transform(X), finds var for each gene, removes low var ones, returns numpy array 
+    # vt.get_support(), to make boolean mask for survived genes 
+    # X.columns[vt.get_support()], to get actual gene names that survived 
 
     # standardizes text subtyping str (e.g., LumA) into machine readbale num (like 0, 1, or 2,..)
-    le = LabelEncoder()
-    return X, le.fit_transform(y), le.classes_
+    le = LabelEncoder() # creats text label to int
+    return X, le.fit_transform(y), le.classes_ 
+        # le.fit_transform(y), converts subtype labels into int for ML
+        # le.classes_, to keep orginal label names for later 
 
 #### diagnostics and visualization 
 def plot_diagnostics(y_true, y_probas, classes, name):
