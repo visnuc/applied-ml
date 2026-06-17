@@ -1,6 +1,6 @@
-# ----------
+# --------------------
 #### Section: Modules & Libraries 
-# ----------
+# --------------------
 import matplotlib # improting core plotting lib, engine  
 matplotlib.use('Agg') # Agg for no graphical windows, good for server 
 import matplotlib.pyplot as plt # plotting interface, stearing wheel  
@@ -50,15 +50,16 @@ from itertools import combinations # to gen unique combos of models, instead of 
 import warnings
 warnings.filterwarnings('ignore') 
 
-# ----------
 
-#### custom scikit-learn transformers 
+# --------------------
+#### Section: Seleting top features 
+# --------------------
 class TopNSelector(BaseEstimator, TransformerMixin): # custom feature selector, inheriting 2 parent classes 
     def __init__(self, n_features=1000, random_state=42): # keeping 1000 genes, setting seed for reproducibility 
         self.n_features = n_features
         self.random_state = random_state
         # instantiates internal RF model to compare feature importance score 
-        self.rf = RandomForestClassifier(n_estimators=100, random_state=self.random_state, n_jobs=-1) # n_job=-1, use all CPU
+        self.rf = RandomForestClassifier(n_estimators=100, random_state=self.random_state, n_jobs=-1) # n_job=-1, all CPUs
         # RandomForestClassifier, as internal RF, used as gene ranking tool 
         self.top_indices_ = None # placeholder, to fill when run fit() 
         self.feature_names_ = None # placeholder, fill when run fit()
@@ -74,7 +75,8 @@ class TopNSelector(BaseEstimator, TransformerMixin): # custom feature selector, 
     
     # this step kept separate to prevent leakage, as fit() sees only training set 
     def transform(self, X): # slices out only selected top N features, selected in the fit() step 
-        return X.iloc[:, self.top_indices_] if isinstance(X, pd.DataFrame) else X[:, self.top_indices_]
+        return X.iloc[:, self.top_indices_] if isinstance(X, pd.DataFrame) else X[:, self.top_indices_] # ternary expression 
+        # to get all rows but only genes inportant in fit() step, either panda df or numpy array 
 
 #### in-fodl var thresholding > aparently did not work 
 class InFoldVarianceThreshold(BaseEstimator, TransformerMixin):
