@@ -53,25 +53,27 @@ warnings.filterwarnings('ignore')
 # ----------
 
 #### custom scikit-learn transformers 
-class TopNSelector(BaseEstimator, TransformerMixin): # custom class, inheriting from 2 parent classes 
+class TopNSelector(BaseEstimator, TransformerMixin): # custom feature selector, inheriting 2 parent classes 
     def __init__(self, n_features=1000, random_state=42): # keeping 1000 genes, setting seed for reproducibility 
         self.n_features = n_features
         self.random_state = random_state
         # instantiates internal RF model to compare feature importance score 
-        self.rf = RandomForestClassifier(n_estimators=100, random_state=self.random_state, n_jobs=-1)
-        self.top_indices_ = None
-        self.feature_names_ = None
+        self.rf = RandomForestClassifier(n_estimators=100, random_state=self.random_state, n_jobs=-1) # n_job=-1, use all CPU
+        # RandomForestClassifier, as internal RF, used as gene ranking tool 
+        self.top_indices_ = None # placeholder, to fill when run fit() 
+        self.feature_names_ = None # placeholder, fill when run fit()
 
-    def fit(self, X, y=None):
-        self.rf.fit(X, y) # trains RF on the current fold's training data 
-        importances = self.rf.feature_importances_ # extracts gini imp score 
-        actual_n = min(self.n_features, X.shape[1]) # prevents errors if data has less features than req
-        self.top_indices_ = np.argsort(importances)[::-1][:actual_n] # sorts feature imp in descending order 
+    def fit(self, X, y=None): # the learning step 
+        self.rf.fit(X, y) # trains RF on the current training fold's gene expression data; x expression, y suntype label
+        importances = self.rf.feature_importances_ # gini importance score assigned to gene aft training 
+        actual_n = min(self.n_features, X.shape[1]) # prevents crash if data has features < requested, takes all available 
+        self.top_indices_ = np.argsort(importances)[::-1][:actual_n] # sorts feature importance in descending order 
         if isinstance(X, pd.DataFrame):
-            self.feature_names_ = X.columns[self.top_indices_].tolist() # retains gene symbol if input is a df 
+            self.feature_names_ = X.columns[self.top_indices_].tolist() # retains gene names, if input is a df 
         return self
-
-    def transform(self, X): # slices out only selected top N features from data 
+    
+    # this step kept separate to prevent leakage, as fit() sees only training set 
+    def transform(self, X): # slices out only selected top N features, selected in the fit() step 
         return X.iloc[:, self.top_indices_] if isinstance(X, pd.DataFrame) else X[:, self.top_indices_]
 
 #### in-fodl var thresholding > aparently did not work 
