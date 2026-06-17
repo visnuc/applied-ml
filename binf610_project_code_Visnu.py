@@ -53,8 +53,8 @@ warnings.filterwarnings('ignore')
 # ----------
 
 #### custom scikit-learn transformers 
-class TopNSelector(BaseEstimator, TransformerMixin):
-    def __init__(self, n_features=1000, random_state=42):
+class TopNSelector(BaseEstimator, TransformerMixin): # custom class, inheriting from 2 parent classes 
+    def __init__(self, n_features=1000, random_state=42): # keeping 1000 genes, setting seed for reproducibility 
         self.n_features = n_features
         self.random_state = random_state
         # instantiates internal RF model to compare feature importance score 
