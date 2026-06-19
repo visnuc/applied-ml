@@ -141,6 +141,7 @@ def load_and_preprocess(mrna_file, clin_file): # taking raw data input
         # le.fit_transform(y), converts subtype labels into int for ML
         # le.classes_, to keep orginal label names for later 
 
+
 # --------------------
 #### Section: Diagnostics and visualization 
 # --------------------
@@ -234,24 +235,41 @@ def run_significance_tests(all_preds, y_true, pipeline_names):
     plt.close()
     print("  p-value heatmap saved to Significance_Heatmap.png") # another completion message 
 
-#### sensitivity check, data leakage test 
-def run_vt_leakage_sensitivity_check(X, y):
+
+
+
+
+
+
+# --------------------
+#### Section: Sensitivity check, data leakage test
+# will not work as global variance thresholding is already done 
+# --------------------
+def run_vt_leakage_sensitivity_check(X, y): # will take feature matrix X, and label y as input 
     print("\n SENSITIVITY CHECK: Global vs In-fold VarianceThreshold")
 
     cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-    # instantiate 10-fold CV strategy  
+    # instantiates 10-fold CV, shuffle samples before splitting, 
     xgb_params = {'n_estimators': 150, 'learning_rate': 0.05, 'max_depth': 6,
                   'random_state': 42, 'eval_metric': 'mlogloss'}
+    # dict for XGB settings 
+        # n_estimators, 150 trees in ensemble 
+        # learning_rate, how much each tree corrects prev one 
+            # lower value, slow but careful leanring
+        # max_depth, how deep each tree grows, limits overfitting 
+        # eval_metric: mlogloss, how to measure its own mistake in training 
+            # penalizes confident mistakes heavily 
     
-    # for global variance cut 
+    # for global variance thresholding 
     pipe_standard = Pipeline([
-        ('selector', TopNSelector(n_features=1000)),
-        ('smote', SMOTE(random_state=42)),
-        ('scaler', StandardScaler()),
-        ('xgb', XGBClassifier(**xgb_params))
+        ('selector', TopNSelector(n_features=1000)), # trains RF internally
+            # ranks genes and keeps top 1000
+        ('smote', SMOTE(random_state=42)), # to handle class imbalance 
+        ('scaler', StandardScaler()), # normalize all genes w mean 0 and SD 1
+        ('xgb', XGBClassifier(**xgb_params)) # **xgb_params, unpack dict 
     ])
 
-    # supposed to isolate low var filtering inside each fold  
+    # for in-fold thresholding 
     pipe_strict = Pipeline([
         ('vt', InFoldVarianceThreshold(threshold=0.01)),
         ('selector', TopNSelector(n_features=1000)),
@@ -261,13 +279,15 @@ def run_vt_leakage_sensitivity_check(X, y):
     ])
 
     for label, pipe in [("Global VT (standard)", pipe_standard),
-                        ("In-fold VT (strict)",  pipe_strict)]:
+                        ("In-fold VT (strict)",  pipe_strict)]: # loops 1/pipeline 
         results = cross_validate(pipe, X, y, cv=cv, scoring='accuracy', n_jobs=1)
+        # runs full 10-fold CV for given pipeline, gives dict w per-folc scores 
         fold_accs = results['test_score']
         # shows mean accuracy, var, sd, 95% ci 
         print(f"  {label}: mean={fold_accs.mean():.4f}  std={fold_accs.std():.4f}  "
               f"95% CI=[{fold_accs.mean()-1.96*fold_accs.std():.4f}, "
               f"{fold_accs.mean()+1.96*fold_accs.std():.4f}]")
+            # fold_accs.mean(), avg accuracy across 10 folds, and so on 
 
 #### for comparative study benchmarking  
 def run_comparative_study(X, y, classes):
