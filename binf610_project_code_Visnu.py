@@ -236,11 +236,6 @@ def run_significance_tests(all_preds, y_true, pipeline_names):
     print("  p-value heatmap saved to Significance_Heatmap.png") # another completion message 
 
 
-
-
-
-
-
 # --------------------
 #### Section: Sensitivity check, data leakage test
 # will not work as global variance thresholding is already done 
@@ -289,26 +284,32 @@ def run_vt_leakage_sensitivity_check(X, y): # will take feature matrix X, and la
               f"{fold_accs.mean()+1.96*fold_accs.std():.4f}]")
             # fold_accs.mean(), avg accuracy across 10 folds, and so on 
 
-#### for comparative study benchmarking  
-def run_comparative_study(X, y, classes):
+
+# --------------------
+#### Section: Comparative study benchmarking  
+# --------------------
+def run_comparative_study(X, y, classes): # X, feature matrix; y, labels; classes, subtype names
     cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
 
-    xgb_params = {'n_estimators': 150, 'learning_rate': 0.05, 'max_depth': 6,
+    xgb_params = {'n_estimators': 150, # n of trees XGB builds 
+                  'learning_rate': 0.05, 'max_depth': 6,
                   'random_state': 42, 'eval_metric': 'mlogloss'}
-    svm_params = {'C': 20, 'gamma': 'scale', 'kernel': 'rbf',
+    svm_params = {'C': 20, # higher val, stricter classification
+                  'gamma': 'scale', 'kernel': 'rbf', # rbf, to map data into higher dimensions 
                   'probability': True, 'random_state': 42}
-    # dict container for teh 6 comparative pipelines 
+    # dict container for the 6 comparative pipelines 
     pipelines = {
         "1. PCA-SVM (Baseline)": Pipeline([
-            ('smote', SMOTE(random_state=42)),
-            ('scaler', StandardScaler()),
-            ('pca', PCA(n_components=100, random_state=42)),
+            ('smote', SMOTE(random_state=42)), # handles class imbalance 
+            ('scaler', StandardScaler()), # normalizes gene expression val
+            ('pca', PCA(n_components=100, random_state=42)), # reduces 20K genes to 100 dims
+                # to capture most variance, linearly 
             ('svm', SVC(**svm_params))
         ]),
         "2. UMAP-SVM (Non-linear)": Pipeline([
             ('smote', SMOTE(random_state=42)),
             ('scaler', StandardScaler()),
-            ('umap', UMAP(n_components=15, random_state=42)),
+            ('umap', UMAP(n_components=15, random_state=42)), # reduces dims, non-linearly, to 15 dims
             ('svm', SVC(**svm_params))
         ]),
         "3. RF-SVM (Info Recovery)": Pipeline([
@@ -317,7 +318,7 @@ def run_comparative_study(X, y, classes):
             ('scaler', StandardScaler()),
             ('svm', SVC(**svm_params))
         ]),
-        "4. Hybrid RF-PCA-SVM": Pipeline([
+        "4. RF-PCA-SVM (Hybrid)": Pipeline([
             ('selector', TopNSelector(n_features=1000)),
             ('smote', SMOTE(random_state=42)),
             ('scaler', StandardScaler()),
@@ -337,23 +338,32 @@ def run_comparative_study(X, y, classes):
         ]),
     }
 
+    # empty containers 
     all_preds = []
     pipeline_names = list(pipelines.keys())
     fold_summary_rows = []
 
     for name, pipe in pipelines.items():
-        print(f"\nEvaluating: {name}...")
+        print(f"\nEvaluating: {name}...") # to show which pipeline running 
 
         # execs 10-fold CV for stable metric collection 
         cv_results = cross_validate(pipe, X, y, cv=cv, scoring='accuracy', n_jobs=1)
-        fold_accs = cv_results['test_score']
-        mean_acc  = fold_accs.mean()
+            # to run 10-fold CV on current pipeline 
+        fold_accs = cv_results['test_score'] # gets accuracy score from each fold
+        mean_acc  = fold_accs.mean() # avg accuracy across folds 
         std_acc   = fold_accs.std()
         ci_lo     = mean_acc - 1.96 * std_acc
         ci_hi     = mean_acc + 1.96 * std_acc
         print(f"  Accuracy: {mean_acc:.4f} ± {std_acc:.4f}  "
               f"(approx. 95% CI: [{ci_lo:.4f}, {ci_hi:.4f}])")
         # to save data per fold to verify model performance consistency 
+
+
+
+
+
+
+
         fold_summary_rows.append({
             'Pipeline': name,
             'Mean_Accuracy': mean_acc,
